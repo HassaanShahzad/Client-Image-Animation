@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Distortion Effect with mouse interaction</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: rgb(0, 0, 0);
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .top {
+            position: absolute;
+            left: 5px;
+            top: 5px;
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+    <script src="https://twgljs.org/dist/twgl.min.js"></script>
+    <canvas></canvas>
+    <script>
+
+    
+
+
+        var vs = `
+attribute vec4 position;
+
+varying vec2 v_texcoord;
+
+void main() {
+  gl_Position = position;
+  v_texcoord = position.xy * .5 + .5;
+}
+`;
+
+        var fs1 = `
+        precision mediump float;
+
+uniform float time;
+uniform sampler2D tex;
+uniform vec2 mouse; // Mouse position
+
+varying vec2 v_texcoord;
+
+float leftRight(float v) {
+  return sin(v) * .5 ;
+}
+
+void main() {
+  float t1 = time * 0.3;  // Adjust the multiplier for slower speed
+  float t2 = time * 0.74;  // Adjust the multiplier for slower speed
+
+  float u = v_texcoord.x; // Horizontal texture coordinate
+
+  float off1 = sin((u + 0.5) * mix(1., 6., leftRight(t1))) * .22; // Use u instead of v
+  float off2 = sin((u + 0.5) * mix(1., 3., leftRight(t2))) * .1; // Use u instead of v
+  float off = off1 + off2;
+
+  // Add mouse interaction to move the effect
+  if (length(mouse - vec2(0.5)) > 0.01) { // Check if the mouse has moved significantly
+    off += (mouse.x - 0.5) * 0.3; // Adjust the multiplier for sensitivity
+  }
+
+  // Calculate the maximum allowed offset to keep the texture within bounds
+
+  float maxOffset = min(u, 1.0 - u); // Take minimum distance to image edges
+
+  // Apply maximum offset limitation
+
+  if (abs(off) > maxOffset) {
+    off = sign(off) * maxOffset;
+  }
+
+  vec2 uv = vec2(
+     u + off,  // Add the offset to the horizontal coordinate
+     1.0 - v_texcoord.y  // Invert the vertical texture coordinate
+  );
+
+  gl_FragColor = texture2D(tex, uv);
+}
+
+
+`;
+
+        var gl = document.querySelector("canvas").getContext("webgl");
+        var programInfo1 = twgl.createProgramInfo(gl, [vs, fs1]);
+        var bufferInfo = twgl.createBufferInfoFromArrays(gl, {
+            position: {
+                numComponents:2,
+                data: [
+                    -1, -1,
+                    1, -1,
+                    -1, 1,
+                    -1, 1,
+                    1, -1,
+                    1, 1,
+                ],
+            },
+        });
+
+        var texture = twgl.createTexture(gl, {
+            src: "meetsta.png",
+            crossOrigin: '',
+        });
+
+        var uniforms = {
+            tex: texture,
+            time: 0,
+            mouse: [0, 0] // Initial mouse position
+        };
+
+        var programIndex = 0;
+        var programInfos = [
+            programInfo1,
+
+        ];
+
+        function updateMousePosition(event) {
+            // Normalize mouse position to range [0, 1]
+            var mouseX = event.clientX / window.innerWidth;
+            var mouseY = event.clientY / window.innerHeight;
+
+            // Update uniforms with mouse position
+            uniforms.mouse = [mouseX, mouseY];
+        }
+
+        // Add event listener to track mouse movement
+        window.addEventListener('mousemove', updateMousePosition);
+
+        function render(time) {
+            uniforms.time = time * 0.001;
+
+            twgl.resizeCanvasToDisplaySize(gl.canvas);
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+            var programInfo = programInfos[programIndex];
+            gl.useProgram(programInfo.program);
+
+            twgl.setBuffersAndAttributes(gl, programInfo, bufferInfo);
+            twgl.setUniforms(programInfo, uniforms);
+            twgl.drawBufferInfo(gl, gl.TRIANGLES, bufferInfo);
+
+            requestAnimationFrame(render);
+        }
+        requestAnimationFrame(render);
+
+
+
+    </script>
+</body>
+
+</html>
